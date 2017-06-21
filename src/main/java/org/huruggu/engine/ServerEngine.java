@@ -1,81 +1,143 @@
 package org.huruggu.engine;
 
-import io.vertx.core.AbstractVerticle;
-import io.vertx.core.AsyncResult;
-import io.vertx.core.Handler;
-import io.vertx.core.Vertx;
+
+import io.vertx.core.*;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.eventbus.EventBus;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
+import io.vertx.core.net.NetServer;
 import io.vertx.core.net.NetSocket;
 import io.vertx.core.parsetools.RecordParser;
 import io.vertx.core.shareddata.LocalMap;
 import io.vertx.core.shareddata.SharedData;
+import io.vertx.ext.sql.SQLConnection;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
  * Created by hwangdonghyeon on 2017. 6. 18..
  */
 public class ServerEngine extends AbstractVerticle {
-    private LocalMap<String, HashMap<String, String>> sockets;
-    private SharedData sd;
+    private static JsonObject config;
+    public LocalMap<String, String> sockets;
+    public SharedData sharedData;
 
-    public void start() {
-        EventBus eventBus = vertx.eventBus();
-        sd = vertx.sharedData();
-        sockets = sd.getLocalMap("sockets");
+    public static JsonObject getConfig() {
+        return ServerEngine.config;
+    }
 
-        Handler<NetSocket> connectHandler = socket -> {
-            String handlerID = socket.writeHandlerID();
-            sockets.put(handlerID, null);
-            for (Map.Entry<String, HashMap<String, String>> entry : sockets.entrySet()) {
-                System.out.println(entry.getKey());
-            }
-            socket.handler(RecordParser.newDelimited("\n", buffer -> {
-                String message = buffer.toString().trim();
-                try {
-                    JsonObject param = new JsonObject(message);
-                    String route = param.getString("route");
-                    eventBus.send("route." + route, param, (AsyncResult<Message<JsonObject>> result) -> {
-                        if (result.succeeded()) {
-                            JsonObject jsonObject = result.result().body();
-                            eventBus.send(handlerID, Buffer.buffer().appendString(jsonObject.toString() + "\n"));
-                        } else {
+    public void start(Future<Void> future) {
+        config = context.config();
+        sharedData = vertx.sharedData();
+        sockets = sharedData.getLocalMap("sockets");
 
-                        }
-                    });
+        DB.initialize(vertx, config);
+        startBackend(
+                (connection) -> startSocketListen(connection,
+                        (netServer) -> startDeployVerticle(netServer,
+                                (complete) -> completeCacherCrayonEngine(complete, future),
+                                future
+                        ),
+                        future
+                ),
+                future
+        );
+    }
 
-                } catch (Exception e) {
-
-                }
-            }));
-            socket.closeHandler(v -> {
-                sockets.remove(handlerID);
-                Helper.printDebug(handlerID + "");
-            });
-            socket.exceptionHandler(v -> {
-                sockets.remove(handlerID);
-                Helper.printDebug(v);
-            });
-        };
-
-        vertx.createNetServer()
-                .connectHandler(connectHandler)
-                .listen(9999, res -> {
-                    if (res.succeeded()) {
-                        Helper.printDebug("Socket Open");
-                    } else {
-                        Helper.printDebug("Failed Socket Open");
-                    }
-                });
-
-        vertx.deployVerticle(new Routes(), (AsyncResult<String> result) -> {
-            if(result.succeeded()) {
-                Helper.printDebug("Route Engine Verticle deployment complete");
+    public void startBackend(Handler<AsyncResult<SQLConnection>> next, Future<Void> future) {
+        DB.getSQLClient().getConnection(ar -> {
+            if (ar.failed()) {
+                future.fail(ar.cause());
+            } else {
+                next.handle(Future.succeededFuture(ar.result()));
             }
         });
     }
+
+    private void startSocketListen(AsyncResult<SQLConnection> sqlConnectionAsyncResult, Handler<AsyncResult<NetServer>> next, Future<Void> future) {
+        if (sqlConnectionAsyncResult.failed()) {
+            future.fail(sqlConnectionAsyncResult.cause());
+        } else {
+            EventBus eventBus = vertx.eventBus();
+            Handler<NetSocket> connectHandler = socket -> {
+                String handlerID = socket.writeHandlerID();
+                sockets.put(handlerID, "");
+                for (Map.Entry<String, String> entry : sockets.entrySet()) {
+                    System.out.println(entry.getKey());
+                }
+                socket.handler(RecordParser.newDelimited("\n", buffer -> {
+                    String message = buffer.toString().trim();
+                    try {
+                        JsonObject param = new JsonObject(message);
+                        param.put("socketID", handlerID);
+                        String route = param.getString("route");
+                        eventBus.send("route:" + route, param, (AsyncResult<Message<JsonObject>> result) -> {
+                            if (result.succeeded()) {
+                                JsonObject jsonObject = result.result().body();
+                                eventBus.send(handlerID, Buffer.buffer().appendString(jsonObject.toString() + "\n"));
+                            } else {
+
+
+                            }
+                        });
+
+                    } catch (Exception e) {
+
+                    }
+                }));
+                socket.closeHandler(v -> {
+                    sockets.remove(handlerID);
+                    Helper.printDebug(handlerID + "");
+                });
+                socket.exceptionHandler(v -> {
+                    sockets.remove(handlerID);
+                    Helper.printDebug(v);
+                });
+            };
+
+            vertx.createNetServer()
+                    .connectHandler(connectHandler)
+                    .listen(9999, next::handle);
+        }
+    }
+
+    private void startDeployVerticle(AsyncResult<NetServer> netServer, Handler<AsyncResult<Void>> next, Future<Void> future) {
+        if (netServer.succeeded()) {
+            Map<String, Integer> controllers = new HashMap<String, Integer>();
+            controllers.put("AuthController", 3);
+            controllers.put("GameController", 3);
+            List<Future> futures = new ArrayList<>();
+            for (Map.Entry<String, Integer> controller : controllers.entrySet()) {
+                Future<String> future_ = Future.future();
+                DeploymentOptions options = new DeploymentOptions().setConfig(config).setInstances(controller.getValue());
+                vertx.deployVerticle("org.huruggu.controllers." + controller.getKey(), options, future_.completer());
+                futures.add(future_);
+            }
+            CompositeFuture.all(futures).setHandler(ar -> {
+                if (ar.succeeded()) {
+                    next.handle(Future.succeededFuture());
+                } else {
+                    future.fail(ar.cause());
+                }
+            });
+        } else {
+            future.fail(netServer.cause());
+        }
+
+    }
+
+    private void completeCacherCrayonEngine(AsyncResult<Void> complete, Future<Void> future) {
+        if (complete.succeeded()) {
+            future.complete();
+            Helper.printDebug("Enjoy Yourself");
+        } else {
+            future.fail("Ops!");
+            Helper.printDebug("Ops!");
+        }
+    }
+
 }

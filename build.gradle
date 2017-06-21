@@ -16,10 +16,13 @@ def vertxVersion = '3.4.2'
 def mainVerticleName = 'org.huruggu.engine.ServerEngine'
 def watchForChange = 'src/**/*'
 def doOnChange = './gradlew classes'
+def configFile = 'src/main/conf/config.json'
 
 dependencies {
     compile "io.vertx:vertx-core:$vertxVersion"
     compile "io.vertx:vertx-jdbc-client:$vertxVersion"
+    compile "io.vertx:vertx-config:$vertxVersion"
+    compile "io.vertx:vertx-auth-jdbc:$vertxVersion"
     compile "mysql:mysql-connector-java:5.1.41"
     compile 'org.apache.commons:commons-lang3:3.5'
     testCompile "junit:junit:4.12"
@@ -37,7 +40,7 @@ shadowJar {
 }
 
 run {
-    args = ['run', mainVerticleName, "--redeploy=$watchForChange", "--launcher-class=$mainClassName", "--on-redeploy=$doOnChange"]
+    args = ['run', mainVerticleName, "--conf=$configFile", "--redeploy=$watchForChange", "--launcher-class=$mainClassName", "--on-redeploy=$doOnChange", "--stacktrace"]
 }
 
 task wrapper(type: Wrapper) {

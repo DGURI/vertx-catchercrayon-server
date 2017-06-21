@@ -1,25 +1,64 @@
 package org.huruggu.engine;
 
 
-
+import io.vertx.core.AsyncResult;
+import io.vertx.core.Future;
+import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.jdbc.JDBCClient;
-import io.vertx.ext.sql.ResultSet;
+import io.vertx.ext.sql.SQLClient;
+import io.vertx.ext.sql.SQLConnection;
+import io.vertx.ext.sql.UpdateResult;
 
-import java.sql.*;
-import java.util.ArrayList;
+import java.util.List;
+
 
 public class DB {
-	private static JDBCClient client = null;
-	PreparedStatement preparedStmt = null;
-	
-	public static void connection(Vertx vertx) {
-		client = JDBCClient.createShared(vertx, Config.db());
-	}
+    private static SQLClient sqlClient = null;
+
+    public static void initialize(Vertx vertx, JsonObject config) {
+        DB.sqlClient = JDBCClient.createShared(vertx, config.getJsonObject("DB"), "DB");
+    }
+
+    public static SQLClient getSQLClient() {
+        return DB.sqlClient;
+    }
+
+    public static void updateWithParams(String query, JsonArray datas, SQLConnection connection, Handler<AsyncResult<Integer>> next) {
+        connection.updateWithParams(query, datas, ar -> {
+            if (ar.failed()) {
+                next.handle(Future.failedFuture(ar.cause()));
+                connection.close();
+                return;
+            }
+            UpdateResult result = ar.result();
+            if (result.getUpdated() == 0) {
+                next.handle(Future.failedFuture(ar.cause()));
+                return;
+            }
+            next.handle(Future.succeededFuture(result.getKeys().getInteger(0)));
+        });
+    }
+
+    public static void queryWithParams(String query, JsonArray datas, SQLConnection connection, Handler<AsyncResult<List<JsonObject>>> next) {
+        connection.queryWithParams(query, datas, ar -> {
+            if (ar.failed()) {
+                next.handle(Future.failedFuture(ar.cause()));
+            } else {
+                if (ar.result().getNumRows() >= 1) {
+                    next.handle(Future.succeededFuture(ar.result().getRows()));
+                } else {
+                    next.handle(Future.failedFuture("fdsfdsf"));
+                }
+            }
+        });
+    }
+
 
 	/*
-	
+
 	public ResultSet query(String qeury) {
 		try {
 			Statement stmt = (Statement) DB.conn.createStatement();

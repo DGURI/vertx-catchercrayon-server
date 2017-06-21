@@ -1,26 +1,30 @@
 package org.huruggu.engine;
 
+import io.vertx.core.json.JsonObject;
+
 import java.util.Iterator;
 import java.util.Map;
 
 
 public class Helper {
-	
-	public static void printDebug(Object obj) {
-		if(Config.DEBUG) System.out.println(obj);
-	}
-	
-	public static void printException(String name, Exception e) {
-		if(Config.DEBUG) {
-			System.out.println(name + " Exception");
-			e.printStackTrace();
+    public static JsonObject config = ServerEngine.getConfig();
+    public static boolean DEBUG = Helper.config.getBoolean("debug");
+
+    public static void printDebug(Object obj) {
+        if (Helper.DEBUG) System.out.println(obj);
+    }
+
+    public static void printException(String name, Exception e) {
+        if (Helper.DEBUG) {
+            System.out.println(name + " Exception");
+            e.printStackTrace();
 		}
 	}
 	
 	public static void threadStatus() {
-		if(Config.DEBUG) {
-			Map map = Thread.getAllStackTraces();
-	        Iterator<Thread> it = map.keySet().iterator();
+        if (Helper.DEBUG) {
+            Map map = Thread.getAllStackTraces();
+            Iterator<Thread> it = map.keySet().iterator();
 	        int x = 0;
 	        while(it.hasNext()) {
 	        	Object obj = it.next();
