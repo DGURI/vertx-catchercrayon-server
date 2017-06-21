@@ -4,8 +4,11 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.eventbus.EventBus;
 import io.vertx.core.eventbus.Message;
+import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import org.huruggu.models.Users;
+
+import java.util.Map;
 
 /**
  * Created by hwangdonghyeon on 2017. 6. 21..
@@ -45,5 +48,17 @@ public class AuthController extends Controller {
         JsonObject request = message.body();
         JsonObject response = new JsonObject();
         response.put("route", "auth.register");
+        JsonObject user = request.getJsonObject("user");
+        user.put("identity", user.getString("identity").trim());
+        user.put("password", user.getString("password").trim());
+        user.put("name", user.getString("name").trim());
+        Users.register(user, (AsyncResult<Integer> resulit)-> {
+            if(resulit.succeeded()) {
+                response.put("status", "success");
+            } else {
+                response.put("status", "error-database");
+            }
+            message.reply(response);
+        });
     }
 }

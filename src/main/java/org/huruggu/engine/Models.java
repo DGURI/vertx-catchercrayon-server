@@ -3,6 +3,7 @@ package org.huruggu.engine;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
+import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.sql.SQLConnection;
@@ -218,6 +219,23 @@ public class Models {
             e.printStackTrace();
         }
         return jsonObject;
+    }
+
+    public void toObject(JsonObject jsonObject) {
+        try {
+            System.out.println(this.getClass().getName());
+            for (Field field : this.getClass().getFields()) {
+                String key = field.getName();
+                if (key.equals("instance") || key.equals("counts")) continue;
+                if(field.getType().getSimpleName().equals("String")) {
+                    field.set(this, jsonObject.getValue(field.getName()).toString().trim());
+                } else {
+                    field.set(this, jsonObject.getValue(field.getName()));
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
 //		try {
