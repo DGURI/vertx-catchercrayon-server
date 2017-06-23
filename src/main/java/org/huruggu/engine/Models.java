@@ -3,10 +3,10 @@ package org.huruggu.engine;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
-import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.sql.SQLConnection;
+import org.huruggu.dbs.Jdbc;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -125,9 +125,9 @@ public class Models {
 
         System.out.println(this.query);
 
-        DB.getSQLClient().getConnection((AsyncResult<SQLConnection> ar) -> {
+        Jdbc.getSQLClient().getConnection((AsyncResult<SQLConnection> ar) -> {
             SQLConnection connection = ar.result();
-            DB.queryWithParams(this.query, datas_, connection, (AsyncResult<List<JsonObject>> result) -> {
+            Jdbc.queryWithParams(this.query, datas_, connection, (AsyncResult<List<JsonObject>> result) -> {
                 if (result.failed()) {
                     aHandler.handle(Future.failedFuture("fdsfds"));
                     return;
@@ -183,9 +183,9 @@ public class Models {
             }
         }
         this.query += keyStr + ") VALUES (" + dataStr + ")";
-        DB.getSQLClient().getConnection(ar -> {
+        Jdbc.getSQLClient().getConnection(ar -> {
             SQLConnection connection = ar.result();
-            DB.updateWithParams(this.query, datas, connection, (AsyncResult<Integer> r) -> {
+            Jdbc.updateWithParams(this.query, datas, connection, (AsyncResult<Integer> r) -> {
                 if (r.succeeded()) {
                     aHandler.handle(Future.succeededFuture(r.result()));
                 } else {
@@ -265,7 +265,7 @@ public class Models {
 //	}
 //
 //	public int insert() {
-//		DB db = new DB();
+//		Jdbc db = new Jdbc();
 //
 //		this.query = "INSERT INTO " + table + "(";
 //		String keyStr = "";

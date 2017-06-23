@@ -12,6 +12,9 @@ import io.vertx.core.parsetools.RecordParser;
 import io.vertx.core.shareddata.LocalMap;
 import io.vertx.core.shareddata.SharedData;
 import io.vertx.ext.sql.SQLConnection;
+import org.huruggu.dbs.Jdbc;
+import org.huruggu.dbs.Mongo;
+import org.huruggu.models.Rooms;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -35,7 +38,8 @@ public class ServerEngine extends AbstractVerticle {
         sharedData = vertx.sharedData();
         sockets = sharedData.getLocalMap("sockets");
 
-        DB.initialize(vertx, config);
+        Jdbc.initialize(vertx, config);
+        Mongo.initialize(vertx, config);
         startBackend(
                 (connection) -> startSocketListen(connection,
                         (netServer) -> startDeployVerticle(netServer,
@@ -46,10 +50,11 @@ public class ServerEngine extends AbstractVerticle {
                 ),
                 future
         );
+
     }
 
     public void startBackend(Handler<AsyncResult<SQLConnection>> next, Future<Void> future) {
-        DB.getSQLClient().getConnection(ar -> {
+        Jdbc.getSQLClient().getConnection(ar -> {
             if (ar.failed()) {
                 future.fail(ar.cause());
             } else {
@@ -65,9 +70,9 @@ public class ServerEngine extends AbstractVerticle {
             EventBus eventBus = vertx.eventBus();
             Handler<NetSocket> connectHandler = socket -> {
                 String handlerID = socket.writeHandlerID();
-                sockets.put(handlerID, "");
+                sockets.put(handlerID, "guest");
                 for (Map.Entry<String, String> entry : sockets.entrySet()) {
-                    System.out.println(entry.getKey());
+                    System.out.println(entry.getKey() + " : " + entry.getValue());
                 }
                 socket.handler(RecordParser.newDelimited("\n", buffer -> {
                     String message = buffer.toString().trim();
@@ -78,15 +83,16 @@ public class ServerEngine extends AbstractVerticle {
                         eventBus.send("route:" + route, param, (AsyncResult<Message<JsonObject>> result) -> {
                             if (result.succeeded()) {
                                 JsonObject jsonObject = result.result().body();
+                                System.out.println("replies : "+jsonObject.toString());
                                 eventBus.send(handlerID, Buffer.buffer().appendString(jsonObject.toString() + "\n"));
                             } else {
 
-
+                                System.out.println(result.cause());
                             }
                         });
 
                     } catch (Exception e) {
-
+                        e.printStackTrace();
                     }
                 }));
                 socket.closeHandler(v -> {
@@ -110,6 +116,7 @@ public class ServerEngine extends AbstractVerticle {
             Map<String, Integer> controllers = new HashMap<String, Integer>();
             controllers.put("AuthController", 3);
             controllers.put("GameController", 3);
+            controllers.put("CanvasController", 5);
             List<Future> futures = new ArrayList<>();
             for (Map.Entry<String, Integer> controller : controllers.entrySet()) {
                 Future<String> future_ = Future.future();
@@ -119,6 +126,7 @@ public class ServerEngine extends AbstractVerticle {
             }
             CompositeFuture.all(futures).setHandler(ar -> {
                 if (ar.succeeded()) {
+                    Rooms.reset();
                     next.handle(Future.succeededFuture());
                 } else {
                     future.fail(ar.cause());

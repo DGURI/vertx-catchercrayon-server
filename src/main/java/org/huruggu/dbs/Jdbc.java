@@ -1,4 +1,4 @@
-package org.huruggu.engine;
+package org.huruggu.dbs;
 
 
 import io.vertx.core.AsyncResult;
@@ -15,15 +15,15 @@ import io.vertx.ext.sql.UpdateResult;
 import java.util.List;
 
 
-public class DB {
+public class Jdbc {
     private static SQLClient sqlClient = null;
 
     public static void initialize(Vertx vertx, JsonObject config) {
-        DB.sqlClient = JDBCClient.createShared(vertx, config.getJsonObject("DB"), "DB");
+        Jdbc.sqlClient = JDBCClient.createShared(vertx, config.getJsonObject("jdbc"), "Jdbc");
     }
 
     public static SQLClient getSQLClient() {
-        return DB.sqlClient;
+        return Jdbc.sqlClient;
     }
 
     public static void updateWithParams(String query, JsonArray datas, SQLConnection connection, Handler<AsyncResult<Integer>> next) {
@@ -61,7 +61,7 @@ public class DB {
 
 	public ResultSet query(String qeury) {
 		try {
-			Statement stmt = (Statement) DB.conn.createStatement();
+			Statement stmt = (Statement) Jdbc.conn.createStatement();
 			ResultSet rs = stmt.executeQuery(qeury);
 			return rs;
 		} catch (SQLException e) {
@@ -75,7 +75,7 @@ public class DB {
 		//String query = " insert into users (first_name, last_name, date_created, is_admin, num_points)" + " values (?, ?, ?, ?, ?)";
 		try {
 		 	// create the mysql insert preparedstatement
-			preparedStmt = DB.conn.prepareStatement(query);
+			preparedStmt = Jdbc.conn.prepareStatement(query);
 			
 			for(int i = 0; i < list.size(); i++) {
 	            //Helper.printDebug("two index " + i + " : value " + list.get(i));
@@ -110,7 +110,7 @@ public class DB {
 		//String query = " insert into users (first_name, last_name, date_created, is_admin, num_points)" + " values (?, ?, ?, ?, ?)";
 		try {
 		 	// create the mysql insert preparedstatement
-			preparedStmt = DB.conn.prepareStatement(query);
+			preparedStmt = Jdbc.conn.prepareStatement(query);
 			
 			for(int i = 0; i < list.size(); i++) {
 	            //Helper.printDebug("two index " + i + " : value " + list.get(i));
